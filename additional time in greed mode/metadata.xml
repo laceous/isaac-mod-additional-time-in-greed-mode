@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+    <name>Additional Time in Greed Mode</name>
+    <directory>additional time in greed mode</directory>
+    <id>3354802495</id>
+    <description>Greed(ier) mode too hard? Need some additional time per wave? Use Mod Config Menu to add additional time to the greed mode timer.
+
+This mod requires REPENTOGON.</description>
+    <version>1.1</version>
+    <visibility>Public</visibility>
+    <tag id="Lua"/>
+    <tag id="Rooms"/>
+    <tag id="Tweaks"/>
+</metadata>
