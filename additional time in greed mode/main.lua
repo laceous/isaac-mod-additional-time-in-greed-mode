@@ -10,6 +10,8 @@ if REPENTOGON then
   mod.state.greedBossWaveSecondsAdded = 0
   mod.state.greedierWaveSecondsAdded = 0
   mod.state.greedierBossWaveSecondsAdded = 0
+  mod.state.greedTimerEnabled = true
+  mod.state.greedierTimerEnabled = true
   
   function mod:onGameStart()
     if mod:HasData() then
@@ -18,6 +20,11 @@ if REPENTOGON then
       if type(state) == 'table' then
         for _, v in ipairs({ 'greedWaveSecondsAdded', 'greedBossWaveSecondsAdded', 'greedierWaveSecondsAdded', 'greedierBossWaveSecondsAdded' }) do
           if math.type(state[v]) == 'integer' and state[v] >= 0 and state[v] <= 300 then
+            mod.state[v] = state[v]
+          end
+        end
+        for _, v in ipairs({ 'greedTimerEnabled', 'greedierTimerEnabled' }) do
+          if type(state[v]) == 'boolean' then
             mod.state[v] = state[v]
           end
         end
@@ -49,20 +56,54 @@ if REPENTOGON then
         local greedWaveTimer = room:GetGreedWaveTimer()
         
         if greedWaveTimer > -1 then
-          local secondsAdded
-          if level.GreedModeWave >= game:GetGreedBossWaveNum() then
-            secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedBossWaveSecondsAdded or mod.state.greedierBossWaveSecondsAdded
+          local timerEnabled
+          if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+            timerEnabled = mod.state.greedTimerEnabled
           else
-            secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedWaveSecondsAdded or mod.state.greedierWaveSecondsAdded
+            timerEnabled = mod.state.greedierTimerEnabled
           end
           
-          if secondsAdded > 0 then
-            room:SetGreedWaveTimer(greedWaveTimer + (secondsAdded * 30))
+          if timerEnabled then
+            local secondsAdded
+            if level.GreedModeWave >= game:GetGreedBossWaveNum() then
+              secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedBossWaveSecondsAdded or mod.state.greedierBossWaveSecondsAdded
+            else
+              secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedWaveSecondsAdded or mod.state.greedierWaveSecondsAdded
+            end
+            
+            if secondsAdded > 0 then
+              room:SetGreedWaveTimer(greedWaveTimer + (secondsAdded * 30))
+            end
+          else
+            room:SetGreedWaveTimer(-1)
+            mod:updatePressurePlateSprite()
           end
         end
       end
       
       mod.lastGreedModeWave = level.GreedModeWave
+    end
+  end
+  
+  function mod:updatePressurePlateSprite()
+    local level = game:GetLevel()
+    local room = level:GetCurrentRoom()
+    
+    for i = 0, room:GetGridSize() - 1 do
+      local gridEntity = room:GetGridEntity(i)
+      if gridEntity and gridEntity:GetType() == GridEntityType.GRID_PRESSURE_PLATE and gridEntity:GetVariant() == PressurePlateVariant.GREED_MODE then
+        local sprite = gridEntity:GetSprite()
+        
+        -- don't show OffRedStart
+        if sprite:GetAnimation() == 'OffRedStart' then
+          if level.GreedModeWave >= game:GetGreedBossWaveNum() then
+            sprite:Play('SwitchedSkull', true)
+          else
+            sprite:Play('Switched', true)
+          end
+          sprite:SetLastFrame()
+        end
+      end
     end
   end
   
@@ -73,8 +114,8 @@ if REPENTOGON then
       ModConfigMenu.RemoveSubcategory(category, v)
     end
     for i, v in ipairs({
-                        { title = 'Greed Mode'   , field = 'greedWaveSecondsAdded'   , bossField = 'greedBossWaveSecondsAdded' },
-                        { title = 'Greedier Mode', field = 'greedierWaveSecondsAdded', bossField = 'greedierBossWaveSecondsAdded' },
+                        { title = 'Greed Mode'   , field = 'greedWaveSecondsAdded'   , bossField = 'greedBossWaveSecondsAdded'   , timerField = 'greedTimerEnabled' },
+                        { title = 'Greedier Mode', field = 'greedierWaveSecondsAdded', bossField = 'greedierBossWaveSecondsAdded', timerField = 'greedierTimerEnabled' },
                       })
     do
       if i ~= 1 then
@@ -119,6 +160,24 @@ if REPENTOGON then
             mod:save()
           end,
           Info = { 'Add time to the greed mode timer' }
+        }
+      )
+      ModConfigMenu.AddSetting(
+        category,
+        'Settings',
+        {
+          Type = ModConfigMenu.OptionType.BOOLEAN,
+          CurrentSetting = function()
+            return mod.state[v.timerField]
+          end,
+          Display = function()
+            return 'Timer: ' .. (mod.state[v.timerField] and 'enabled' or 'disabled')
+          end,
+          OnChange = function(b)
+            mod.state[v.timerField] = b
+            mod:save()
+          end,
+          Info = { 'Enabled: timer + button behave normally', 'Disabled: button must be pressed after each wave' }
         }
       )
     end
