@@ -55,14 +55,14 @@ if REPENTOGON then
       then
         local greedWaveTimer = room:GetGreedWaveTimer()
         
+        local timerEnabled
+        if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+          timerEnabled = mod.state.greedTimerEnabled
+        else
+          timerEnabled = mod.state.greedierTimerEnabled
+        end
+        
         if greedWaveTimer > -1 then
-          local timerEnabled
-          if game.Difficulty == Difficulty.DIFFICULTY_GREED then
-            timerEnabled = mod.state.greedTimerEnabled
-          else
-            timerEnabled = mod.state.greedierTimerEnabled
-          end
-          
           if timerEnabled then
             local secondsAdded
             if level.GreedModeWave >= game:GetGreedBossWaveNum() then
@@ -76,6 +76,10 @@ if REPENTOGON then
             end
           else
             room:SetGreedWaveTimer(-1)
+            mod:updatePressurePlateSprite()
+          end
+        else
+          if not timerEnabled then
             mod:updatePressurePlateSprite()
           end
         end
@@ -93,14 +97,21 @@ if REPENTOGON then
       local gridEntity = room:GetGridEntity(i)
       if gridEntity and gridEntity:GetType() == GridEntityType.GRID_PRESSURE_PLATE and gridEntity:GetVariant() == PressurePlateVariant.GREED_MODE then
         local sprite = gridEntity:GetSprite()
+        local animation = sprite:GetAnimation()
         
         -- don't show OffRedStart
-        if sprite:GetAnimation() == 'OffRedStart' then
+        if animation == 'OffRedStart' then
           if level.GreedModeWave >= game:GetGreedBossWaveNum() then
             sprite:Play('SwitchedSkull', true)
           else
             sprite:Play('Switched', true)
           end
+          sprite:SetLastFrame()
+        elseif animation == 'OffSkull' then
+          sprite:Play('SwitchedSkull', true)
+          sprite:SetLastFrame()
+        elseif animation == 'OffPentagram' then
+          sprite:Play('SwitchedPentagram', true)
           sprite:SetLastFrame()
         end
       end
