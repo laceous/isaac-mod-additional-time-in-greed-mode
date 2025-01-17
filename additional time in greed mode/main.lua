@@ -65,7 +65,7 @@ if REPENTOGON then
         if greedWaveTimer > -1 then
           if timerEnabled then
             local secondsAdded
-            if level.GreedModeWave >= game:GetGreedBossWaveNum() then
+            if level.GreedModeWave >= game:GetGreedBossWaveNum() then -- game:IsGreedBoss / game:IsGreedFinalBoss
               secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedBossWaveSecondsAdded or mod.state.greedierBossWaveSecondsAdded
             else
               secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedWaveSecondsAdded or mod.state.greedierWaveSecondsAdded
