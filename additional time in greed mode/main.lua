@@ -41,6 +41,10 @@ if REPENTOGON then
     mod:SaveData(json.encode(mod.state))
   end
   
+  function mod:onStartGreedWave()
+    mod:doGreedWaveLogic()
+  end
+  
   function mod:onUpdate()
     if game:IsGreedMode() then
       local level = game:GetLevel()
@@ -53,39 +57,45 @@ if REPENTOGON then
          room:IsCurrentRoomLastBoss() and
          roomDesc.GridIndex == 84
       then
-        local greedWaveTimer = room:GetGreedWaveTimer()
-        
-        local timerEnabled
-        if game.Difficulty == Difficulty.DIFFICULTY_GREED then
-          timerEnabled = mod.state.greedTimerEnabled
-        else
-          timerEnabled = mod.state.greedierTimerEnabled
-        end
-        
-        if greedWaveTimer > -1 then
-          if timerEnabled then
-            local secondsAdded
-            if level.GreedModeWave >= game:GetGreedBossWaveNum() then -- game:IsGreedBoss / game:IsGreedFinalBoss
-              secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedBossWaveSecondsAdded or mod.state.greedierBossWaveSecondsAdded
-            else
-              secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedWaveSecondsAdded or mod.state.greedierWaveSecondsAdded
-            end
-            
-            if secondsAdded > 0 then
-              room:SetGreedWaveTimer(greedWaveTimer + (secondsAdded * 30))
-            end
-          else
-            room:SetGreedWaveTimer(-1)
-            mod:updatePressurePlateSprite()
-          end
-        else
-          if not timerEnabled then
-            mod:updatePressurePlateSprite()
-          end
-        end
+        mod:doGreedWaveLogic()
       end
       
       mod.lastGreedModeWave = level.GreedModeWave
+    end
+  end
+  
+  function mod:doGreedWaveLogic()
+    local level = game:GetLevel()
+    local room = level:GetCurrentRoom()
+    local greedWaveTimer = room:GetGreedWaveTimer()
+    
+    local timerEnabled
+    if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+      timerEnabled = mod.state.greedTimerEnabled
+    else
+      timerEnabled = mod.state.greedierTimerEnabled
+    end
+    
+    if greedWaveTimer > -1 then
+      if timerEnabled then
+        local secondsAdded
+        if level.GreedModeWave >= game:GetGreedBossWaveNum() then -- game:IsGreedBoss / game:IsGreedFinalBoss
+          secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedBossWaveSecondsAdded or mod.state.greedierBossWaveSecondsAdded
+        else
+          secondsAdded = game.Difficulty == Difficulty.DIFFICULTY_GREED and mod.state.greedWaveSecondsAdded or mod.state.greedierWaveSecondsAdded
+        end
+        
+        if secondsAdded > 0 then
+          room:SetGreedWaveTimer(greedWaveTimer + (secondsAdded * 30))
+        end
+      else
+        room:SetGreedWaveTimer(-1)
+        mod:updatePressurePlateSprite()
+      end
+    else
+      if not timerEnabled then
+        mod:updatePressurePlateSprite()
+      end
     end
   end
   
@@ -197,7 +207,11 @@ if REPENTOGON then
   
   mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, mod.onGameStart)
   mod:AddCallback(ModCallbacks.MC_PRE_GAME_EXIT, mod.onGameExit)
-  mod:AddCallback(ModCallbacks.MC_POST_UPDATE, mod.onUpdate)
+  if ModCallbacks.MC_POST_START_GREED_WAVE then -- added in rgon for rep+
+    mod:AddCallback(ModCallbacks.MC_POST_START_GREED_WAVE, mod.onStartGreedWave)
+  else
+    mod:AddCallback(ModCallbacks.MC_POST_UPDATE, mod.onUpdate)
+  end
   
   if ModConfigMenu then
     mod:setupModConfigMenu()
