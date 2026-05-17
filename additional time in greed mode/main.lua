@@ -12,6 +12,8 @@ if REPENTOGON then
   mod.state.greedierBossWaveSecondsAdded = 0
   mod.state.greedTimerEnabled = true
   mod.state.greedierTimerEnabled = true
+  mod.state.greedDamageEnabled = true
+  mod.state.greedierDamageEnabled = true
   
   function mod:onGameStart()
     if mod:HasData() then
@@ -23,7 +25,7 @@ if REPENTOGON then
             mod.state[v] = state[v]
           end
         end
-        for _, v in ipairs({ 'greedTimerEnabled', 'greedierTimerEnabled' }) do
+        for _, v in ipairs({ 'greedTimerEnabled', 'greedierTimerEnabled', 'greedDamageEnabled', 'greedierDamageEnabled' }) do
           if type(state[v]) == 'boolean' then
             mod.state[v] = state[v]
           end
@@ -39,6 +41,34 @@ if REPENTOGON then
   
   function mod:save()
     mod:SaveData(json.encode(mod.state))
+  end
+  
+  function mod:onPrePlayerTakeDmg(player, damage, dmgFlags, source, countdown)
+    if game:IsGreedMode() then
+      local level = game:GetLevel()
+      local room = level:GetCurrentRoom()
+      local roomDesc = level:GetCurrentRoomDesc()
+      
+      if dmgFlags & DamageFlag.DAMAGE_SPIKES == DamageFlag.DAMAGE_SPIKES and -- DAMAGE_NO_PENALTIES
+         source.Type == EntityType.ENTITY_NULL and
+         source.Variant == GridEntityType.GRID_NULL and -- GRID_PRESSURE_PLATE
+         room:GetType() == RoomType.ROOM_DEFAULT and
+         room:GetRoomShape() == RoomShape.ROOMSHAPE_1x2 and
+         room:IsCurrentRoomLastBoss() and
+         roomDesc.GridIndex == 84
+      then
+        local damageEnabled
+        if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+          damageEnabled = mod.state.greedDamageEnabled
+        else
+          damageEnabled = mod.state.greedierDamageEnabled
+        end
+        
+        if not damageEnabled then
+          return false
+        end
+      end
+    end
   end
   
   function mod:onStartGreedWave()
@@ -135,8 +165,8 @@ if REPENTOGON then
       ModConfigMenu.RemoveSubcategory(category, v)
     end
     for i, v in ipairs({
-                        { title = 'Greed Mode'   , field = 'greedWaveSecondsAdded'   , bossField = 'greedBossWaveSecondsAdded'   , timerField = 'greedTimerEnabled' },
-                        { title = 'Greedier Mode', field = 'greedierWaveSecondsAdded', bossField = 'greedierBossWaveSecondsAdded', timerField = 'greedierTimerEnabled' },
+                        { title = 'Greed Mode'   , field = 'greedWaveSecondsAdded'   , bossField = 'greedBossWaveSecondsAdded'   , timerField = 'greedTimerEnabled'   , damageField = 'greedDamageEnabled' },
+                        { title = 'Greedier Mode', field = 'greedierWaveSecondsAdded', bossField = 'greedierBossWaveSecondsAdded', timerField = 'greedierTimerEnabled', damageField = 'greedierDamageEnabled' },
                       })
     do
       if i ~= 1 then
@@ -201,12 +231,31 @@ if REPENTOGON then
           Info = { 'Enabled: timer + button behave normally', 'Disabled: button must be pressed after each wave' }
         }
       )
+      ModConfigMenu.AddSetting(
+        category,
+        'Settings',
+        {
+          Type = ModConfigMenu.OptionType.BOOLEAN,
+          CurrentSetting = function()
+            return mod.state[v.damageField]
+          end,
+          Display = function()
+            return 'Damage: ' .. (mod.state[v.damageField] and 'enabled' or 'disabled')
+          end,
+          OnChange = function(b)
+            mod.state[v.damageField] = b
+            mod:save()
+          end,
+          Info = { 'Enabled: spiked button will damage player', 'Disabled: spiked button will not damage player' }
+        }
+      )
     end
   end
   -- end ModConfigMenu --
   
   mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, mod.onGameStart)
   mod:AddCallback(ModCallbacks.MC_PRE_GAME_EXIT, mod.onGameExit)
+  mod:AddCallback(ModCallbacks.MC_PRE_PLAYER_TAKE_DMG, mod.onPrePlayerTakeDmg) -- doesn't remove holy mantle unlike MC_ENTITY_TAKE_DMG
   if ModCallbacks.MC_POST_START_GREED_WAVE then -- added in rgon for rep+
     mod:AddCallback(ModCallbacks.MC_POST_START_GREED_WAVE, mod.onStartGreedWave)
   else

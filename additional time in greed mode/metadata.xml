@@ -5,8 +5,10 @@
     <id>3354802495</id>
     <description>Greed(ier) mode too hard? Need some additional time per wave? Use Mod Config Menu to add additional time to the greed mode timer. You can also disable the timer completely.
 
-This mod requires REPENTOGON.</description>
-    <version>1.5</version>
+This mod requires REPENTOGON.
+
+Update: There's a new option that will let you press the spiked button without taking damage.</description>
+    <version>1.6</version>
     <visibility>Public</visibility>
     <tag id="Lua"/>
     <tag id="Rooms"/>
