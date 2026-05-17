@@ -12,8 +12,8 @@ if REPENTOGON then
   mod.state.greedierBossWaveSecondsAdded = 0
   mod.state.greedTimerEnabled = true
   mod.state.greedierTimerEnabled = true
-  mod.state.greedDamageEnabled = true
-  mod.state.greedierDamageEnabled = true
+  mod.state.greedSpikesEnabled = true
+  mod.state.greedierSpikesEnabled = true
   
   function mod:onGameStart()
     if mod:HasData() then
@@ -25,7 +25,7 @@ if REPENTOGON then
             mod.state[v] = state[v]
           end
         end
-        for _, v in ipairs({ 'greedTimerEnabled', 'greedierTimerEnabled', 'greedDamageEnabled', 'greedierDamageEnabled' }) do
+        for _, v in ipairs({ 'greedTimerEnabled', 'greedierTimerEnabled', 'greedSpikesEnabled', 'greedierSpikesEnabled' }) do
           if type(state[v]) == 'boolean' then
             mod.state[v] = state[v]
           end
@@ -44,30 +44,34 @@ if REPENTOGON then
   end
   
   function mod:onPrePlayerTakeDmg(player, damage, dmgFlags, source, countdown)
-    if game:IsGreedMode() then
-      local level = game:GetLevel()
-      local room = level:GetCurrentRoom()
-      local roomDesc = level:GetCurrentRoomDesc()
-      
-      if dmgFlags & DamageFlag.DAMAGE_SPIKES == DamageFlag.DAMAGE_SPIKES and -- DAMAGE_NO_PENALTIES
-         source.Type == EntityType.ENTITY_NULL and
-         source.Variant == GridEntityType.GRID_NULL and -- GRID_PRESSURE_PLATE
-         room:GetType() == RoomType.ROOM_DEFAULT and
-         room:GetRoomShape() == RoomShape.ROOMSHAPE_1x2 and
-         room:IsCurrentRoomLastBoss() and
-         roomDesc.GridIndex == 84
-      then
-        local damageEnabled
-        if game.Difficulty == Difficulty.DIFFICULTY_GREED then
-          damageEnabled = mod.state.greedDamageEnabled
-        else
-          damageEnabled = mod.state.greedierDamageEnabled
-        end
-        
-        if not damageEnabled then
-          return false
-        end
+    if dmgFlags & DamageFlag.DAMAGE_SPIKES == DamageFlag.DAMAGE_SPIKES and -- DAMAGE_NO_PENALTIES
+       source.Type == EntityType.ENTITY_NULL and
+       source.Variant == GridEntityType.GRID_NULL and -- GRID_PRESSURE_PLATE
+       mod:isGreedWaveRoom()
+    then
+      local spikesEnabled
+      if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+        spikesEnabled = mod.state.greedSpikesEnabled
+      else
+        spikesEnabled = mod.state.greedierSpikesEnabled
       end
+      
+      if not spikesEnabled then
+        return false
+      end
+    end
+  end
+  
+  function mod:onGridEntityPressurePlateUpdate(pressurePlate)
+    if pressurePlate:GetVariant() == PressurePlateVariant.GREED_MODE and mod:isGreedWaveRoom() then
+      local spikesEnabled
+      if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+        spikesEnabled = mod.state.greedSpikesEnabled
+      else
+        spikesEnabled = mod.state.greedierSpikesEnabled
+      end
+      
+      pressurePlate:GetSprite():GetLayer('Spikes'):SetVisible(spikesEnabled)
     end
   end
   
@@ -78,15 +82,8 @@ if REPENTOGON then
   function mod:onUpdate()
     if game:IsGreedMode() then
       local level = game:GetLevel()
-      local room = level:GetCurrentRoom()
-      local roomDesc = level:GetCurrentRoomDesc()
       
-      if level.GreedModeWave ~= mod.lastGreedModeWave and
-         room:GetType() == RoomType.ROOM_DEFAULT and
-         room:GetRoomShape() == RoomShape.ROOMSHAPE_1x2 and
-         room:IsCurrentRoomLastBoss() and
-         roomDesc.GridIndex == 84
-      then
+      if level.GreedModeWave ~= mod.lastGreedModeWave and mod:isGreedWaveRoom() then
         mod:doGreedWaveLogic()
       end
       
@@ -158,6 +155,18 @@ if REPENTOGON then
     end
   end
   
+  function mod:isGreedWaveRoom()
+    local level = game:GetLevel()
+    local room = level:GetCurrentRoom()
+    local roomDesc = level:GetCurrentRoomDesc()
+    
+    return game:IsGreedMode() and
+           room:GetType() == RoomType.ROOM_DEFAULT and
+           room:GetRoomShape() == RoomShape.ROOMSHAPE_1x2 and
+           room:IsCurrentRoomLastBoss() and
+           roomDesc.GridIndex == 84
+  end
+  
   -- start ModConfigMenu --
   function mod:setupModConfigMenu()
     local category = 'Add Time in Greed' -- Mode
@@ -165,8 +174,8 @@ if REPENTOGON then
       ModConfigMenu.RemoveSubcategory(category, v)
     end
     for i, v in ipairs({
-                        { title = 'Greed Mode'   , field = 'greedWaveSecondsAdded'   , bossField = 'greedBossWaveSecondsAdded'   , timerField = 'greedTimerEnabled'   , damageField = 'greedDamageEnabled' },
-                        { title = 'Greedier Mode', field = 'greedierWaveSecondsAdded', bossField = 'greedierBossWaveSecondsAdded', timerField = 'greedierTimerEnabled', damageField = 'greedierDamageEnabled' },
+                        { title = 'Greed Mode'   , field = 'greedWaveSecondsAdded'   , bossField = 'greedBossWaveSecondsAdded'   , timerField = 'greedTimerEnabled'   , spikesField = 'greedSpikesEnabled' },
+                        { title = 'Greedier Mode', field = 'greedierWaveSecondsAdded', bossField = 'greedierBossWaveSecondsAdded', timerField = 'greedierTimerEnabled', spikesField = 'greedierSpikesEnabled' },
                       })
     do
       if i ~= 1 then
@@ -237,16 +246,16 @@ if REPENTOGON then
         {
           Type = ModConfigMenu.OptionType.BOOLEAN,
           CurrentSetting = function()
-            return mod.state[v.damageField]
+            return mod.state[v.spikesField]
           end,
           Display = function()
-            return 'Damage: ' .. (mod.state[v.damageField] and 'enabled' or 'disabled')
+            return 'Spikes: ' .. (mod.state[v.spikesField] and 'enabled' or 'disabled')
           end,
           OnChange = function(b)
-            mod.state[v.damageField] = b
+            mod.state[v.spikesField] = b
             mod:save()
           end,
-          Info = { 'Enabled: spiked button will damage player', 'Disabled: spiked button will not damage player' }
+          Info = { 'Enabled: spiked button will damage player', 'Disabled: spikes will be removed from button' }
         }
       )
     end
@@ -256,6 +265,7 @@ if REPENTOGON then
   mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, mod.onGameStart)
   mod:AddCallback(ModCallbacks.MC_PRE_GAME_EXIT, mod.onGameExit)
   mod:AddCallback(ModCallbacks.MC_PRE_PLAYER_TAKE_DMG, mod.onPrePlayerTakeDmg) -- doesn't remove holy mantle unlike MC_ENTITY_TAKE_DMG
+  mod:AddCallback(ModCallbacks.MC_POST_GRID_ENTITY_PRESSUREPLATE_UPDATE, mod.onGridEntityPressurePlateUpdate)
   if ModCallbacks.MC_POST_START_GREED_WAVE then -- added in rgon for rep+
     mod:AddCallback(ModCallbacks.MC_POST_START_GREED_WAVE, mod.onStartGreedWave)
   else
