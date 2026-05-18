@@ -4,6 +4,7 @@ local game = Game()
 
 if REPENTOGON then
   mod.lastGreedModeWave = 0
+  mod.onGameStartHasRun = false
   
   mod.state = {}
   mod.state.greedWaveSecondsAdded = 0
@@ -32,15 +33,44 @@ if REPENTOGON then
         end
       end
     end
+    
+    mod.onGameStartHasRun = true
+    mod:onNewRoom()
   end
   
   function mod:onGameExit()
     mod:save()
     mod.lastGreedModeWave = 0
+    mod.onGameStartHasRun = false
   end
   
   function mod:save()
     mod:SaveData(json.encode(mod.state))
+  end
+  
+  function mod:onNewRoom()
+    if not mod.onGameStartHasRun then
+      return
+    end
+    
+    if mod:isGreedWaveRoom() then
+      mod:updatePressurePlateSpikes()
+    end
+  end
+  
+  -- filtered to GRID_PRESSURE_PLATE
+  -- can run before onGameStartHasRun, but onNewRoom will clean it up
+  function mod:onGridEntitySpawn(gridEntity)
+    if gridEntity:GetVariant() == PressurePlateVariant.GREED_MODE and mod:isGreedWaveRoom() then
+      local spikesEnabled
+      if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+        spikesEnabled = mod.state.greedSpikesEnabled
+      else
+        spikesEnabled = mod.state.greedierSpikesEnabled
+      end
+      
+      gridEntity:GetSprite():GetLayer('Spikes'):SetVisible(spikesEnabled)
+    end
   end
   
   function mod:onPrePlayerTakeDmg(player, damage, dmgFlags, source, countdown)
@@ -59,19 +89,6 @@ if REPENTOGON then
       if not spikesEnabled then
         return false
       end
-    end
-  end
-  
-  function mod:onGridEntityPressurePlateUpdate(pressurePlate)
-    if pressurePlate:GetVariant() == PressurePlateVariant.GREED_MODE and mod:isGreedWaveRoom() then
-      local spikesEnabled
-      if game.Difficulty == Difficulty.DIFFICULTY_GREED then
-        spikesEnabled = mod.state.greedSpikesEnabled
-      else
-        spikesEnabled = mod.state.greedierSpikesEnabled
-      end
-      
-      pressurePlate:GetSprite():GetLayer('Spikes'):SetVisible(spikesEnabled)
     end
   end
   
@@ -117,16 +134,16 @@ if REPENTOGON then
         end
       else
         room:SetGreedWaveTimer(-1)
-        mod:updatePressurePlateSprite()
+        mod:updatePressurePlateAnimation()
       end
     else
       if not timerEnabled then
-        mod:updatePressurePlateSprite()
+        mod:updatePressurePlateAnimation()
       end
     end
   end
   
-  function mod:updatePressurePlateSprite()
+  function mod:updatePressurePlateAnimation()
     local level = game:GetLevel()
     local room = level:GetCurrentRoom()
     
@@ -151,6 +168,24 @@ if REPENTOGON then
           sprite:Play('SwitchedPentagram', true)
           sprite:SetLastFrame()
         end
+      end
+    end
+  end
+  
+  function mod:updatePressurePlateSpikes()
+    local room = game:GetRoom()
+    
+    local spikesEnabled
+    if game.Difficulty == Difficulty.DIFFICULTY_GREED then
+      spikesEnabled = mod.state.greedSpikesEnabled
+    else
+      spikesEnabled = mod.state.greedierSpikesEnabled
+    end
+    
+    for i = 0, room:GetGridSize() - 1 do
+      local gridEntity = room:GetGridEntity(i)
+      if gridEntity and gridEntity:GetType() == GridEntityType.GRID_PRESSURE_PLATE and gridEntity:GetVariant() == PressurePlateVariant.GREED_MODE then
+        gridEntity:GetSprite():GetLayer('Spikes'):SetVisible(spikesEnabled)
       end
     end
   end
@@ -253,6 +288,9 @@ if REPENTOGON then
           end,
           OnChange = function(b)
             mod.state[v.spikesField] = b
+            if mod:isGreedWaveRoom() then
+              mod:updatePressurePlateSpikes()
+            end
             mod:save()
           end,
           Info = { 'Enabled: spiked button will damage player', 'Disabled: spikes will be removed from button' }
@@ -264,8 +302,9 @@ if REPENTOGON then
   
   mod:AddCallback(ModCallbacks.MC_POST_GAME_STARTED, mod.onGameStart)
   mod:AddCallback(ModCallbacks.MC_PRE_GAME_EXIT, mod.onGameExit)
+  mod:AddCallback(ModCallbacks.MC_POST_NEW_ROOM, mod.onNewRoom)
+  mod:AddCallback(ModCallbacks.MC_POST_GRID_ENTITY_SPAWN, mod.onGridEntitySpawn, GridEntityType.GRID_PRESSURE_PLATE)
   mod:AddCallback(ModCallbacks.MC_PRE_PLAYER_TAKE_DMG, mod.onPrePlayerTakeDmg) -- doesn't remove holy mantle unlike MC_ENTITY_TAKE_DMG
-  mod:AddCallback(ModCallbacks.MC_POST_GRID_ENTITY_PRESSUREPLATE_UPDATE, mod.onGridEntityPressurePlateUpdate)
   if ModCallbacks.MC_POST_START_GREED_WAVE then -- added in rgon for rep+
     mod:AddCallback(ModCallbacks.MC_POST_START_GREED_WAVE, mod.onStartGreedWave)
   else
